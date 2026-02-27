@@ -10,6 +10,7 @@ import { chatService, Message } from './chatService'
 import { wcdbService } from './wcdbService'
 import { ConfigService } from './config'
 import { videoService } from './videoService'
+import { imageDecryptService } from './imageDecryptService'
 
 // ChatLab 格式定义
 interface ChatLabHeader {
@@ -69,6 +70,7 @@ interface ApiExportedMedia {
   kind: MediaKind
   fileName: string
   fullPath: string
+  relativePath: string
 }
 
 // ChatLab 消息类型映射
@@ -236,12 +238,48 @@ class HttpService {
         await this.handleSessions(url, res)
       } else if (pathname === '/api/v1/contacts') {
         await this.handleContacts(url, res)
+      } else if (pathname.startsWith('/api/v1/media/')) {
+        this.handleMediaRequest(pathname, res)
       } else {
         this.sendError(res, 404, 'Not Found')
       }
     } catch (error) {
       console.error('[HttpService] Request error:', error)
       this.sendError(res, 500, String(error))
+    }
+  }
+
+  private handleMediaRequest(pathname: string, res: http.ServerResponse): void {
+    const mediaBasePath = this.getApiMediaExportPath()
+    const relativePath = pathname.replace('/api/v1/media/', '')
+    const fullPath = path.join(mediaBasePath, relativePath)
+
+    if (!fs.existsSync(fullPath)) {
+      this.sendError(res, 404, 'Media not found')
+      return
+    }
+
+    const ext = path.extname(fullPath).toLowerCase()
+    const mimeTypes: Record<string, string> = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.wav': 'audio/wav',
+      '.mp3': 'audio/mpeg',
+      '.mp4': 'video/mp4'
+    }
+    const contentType = mimeTypes[ext] || 'application/octet-stream'
+
+    try {
+      const fileBuffer = fs.readFileSync(fullPath)
+      res.setHeader('Content-Type', contentType)
+      res.setHeader('Content-Length', fileBuffer.length)
+      res.writeHead(200)
+      res.end(fileBuffer)
+    } catch (e) {
+      this.sendError(res, 500, 'Failed to read media file')
     }
   }
 
@@ -380,7 +418,7 @@ class HttpService {
     const queryOffset = keyword ? 0 : offset
     const queryLimit = keyword ? 10000 : limit
 
-    const result = await this.fetchMessagesBatch(talker, queryOffset, queryLimit, startTime, endTime, true)
+    const result = await this.fetchMessagesBatch(talker, queryOffset, queryLimit, startTime, endTime, false)
     if (!result.success || !result.messages) {
       this.sendError(res, 500, result.error || 'Failed to get messages')
       return
@@ -576,19 +614,44 @@ class HttpService {
   ): Promise<ApiExportedMedia | null> {
     try {
       if (msg.localType === 3 && options.exportImages) {
-        const result = await chatService.getImageData(talker, String(msg.localId))
-        if (result.success && result.data) {
-          const imageBuffer = Buffer.from(result.data, 'base64')
-          const ext = this.detectImageExt(imageBuffer)
-          const fileBase = this.sanitizeFileName(msg.imageMd5 || msg.imageDatName || `image_${msg.localId}`, `image_${msg.localId}`)
-          const fileName = `${fileBase}${ext}`
-          const targetDir = path.join(sessionDir, 'images')
-          const fullPath = path.join(targetDir, fileName)
-          this.ensureDir(targetDir)
-          if (!fs.existsSync(fullPath)) {
-            fs.writeFileSync(fullPath, imageBuffer)
+        const result = await imageDecryptService.decryptImage({
+          sessionId: talker,
+          imageMd5: msg.imageMd5,
+          imageDatName: msg.imageDatName,
+          force: true
+        })
+        if (result.success && result.localPath) {
+          let imagePath = result.localPath
+          if (imagePath.startsWith('data:')) {
+            const base64Match = imagePath.match(/^data:[^;]+;base64,(.+)$/)
+            if (base64Match) {
+              const imageBuffer = Buffer.from(base64Match[1], 'base64')
+              const ext = this.detectImageExt(imageBuffer)
+              const fileBase = this.sanitizeFileName(msg.imageMd5 || msg.imageDatName || `image_${msg.localId}`, `image_${msg.localId}`)
+              const fileName = `${fileBase}${ext}`
+              const targetDir = path.join(sessionDir, 'images')
+              const fullPath = path.join(targetDir, fileName)
+              this.ensureDir(targetDir)
+              if (!fs.existsSync(fullPath)) {
+                fs.writeFileSync(fullPath, imageBuffer)
+              }
+              const relativePath = `${this.sanitizeFileName(talker, 'session')}/images/${fileName}`
+              return { kind: 'image', fileName, fullPath, relativePath }
+            }
+          } else if (fs.existsSync(imagePath)) {
+            const imageBuffer = fs.readFileSync(imagePath)
+            const ext = this.detectImageExt(imageBuffer)
+            const fileBase = this.sanitizeFileName(msg.imageMd5 || msg.imageDatName || `image_${msg.localId}`, `image_${msg.localId}`)
+            const fileName = `${fileBase}${ext}`
+            const targetDir = path.join(sessionDir, 'images')
+            const fullPath = path.join(targetDir, fileName)
+            this.ensureDir(targetDir)
+            if (!fs.existsSync(fullPath)) {
+              fs.copyFileSync(imagePath, fullPath)
+            }
+            const relativePath = `${this.sanitizeFileName(talker, 'session')}/images/${fileName}`
+            return { kind: 'image', fileName, fullPath, relativePath }
           }
-          return { kind: 'image', fileName, fullPath }
         }
       }
 
@@ -607,7 +670,8 @@ class HttpService {
           if (!fs.existsSync(fullPath)) {
             fs.writeFileSync(fullPath, Buffer.from(result.data, 'base64'))
           }
-          return { kind: 'voice', fileName, fullPath }
+          const relativePath = `${this.sanitizeFileName(talker, 'session')}/voices/${fileName}`
+          return { kind: 'voice', fileName, fullPath, relativePath }
         }
       }
 
@@ -622,7 +686,8 @@ class HttpService {
           if (!fs.existsSync(fullPath)) {
             fs.copyFileSync(info.videoUrl, fullPath)
           }
-          return { kind: 'video', fileName, fullPath }
+          const relativePath = `${this.sanitizeFileName(talker, 'session')}/videos/${fileName}`
+          return { kind: 'video', fileName, fullPath, relativePath }
         }
       }
 
@@ -637,7 +702,8 @@ class HttpService {
           if (!fs.existsSync(fullPath)) {
             fs.copyFileSync(result.localPath, fullPath)
           }
-          return { kind: 'emoji', fileName, fullPath }
+          const relativePath = `${this.sanitizeFileName(talker, 'session')}/emojis/${fileName}`
+          return { kind: 'emoji', fileName, fullPath, relativePath }
         }
       }
     } catch (e) {
@@ -661,7 +727,8 @@ class HttpService {
       parsedContent: msg.parsedContent,
       mediaType: media?.kind,
       mediaFileName: media?.fileName,
-      mediaPath: media?.fullPath
+      mediaUrl: media ? `http://127.0.0.1:${this.port}/api/v1/media/${media.relativePath}` : undefined,
+      mediaLocalPath: media?.fullPath
     }
   }
 
@@ -784,7 +851,7 @@ class HttpService {
         type: this.mapMessageType(msg.localType, msg),
         content: this.getMessageContent(msg),
         platformMessageId: msg.serverId ? String(msg.serverId) : undefined,
-        mediaPath: mediaMap.get(msg.localId)?.fullPath
+        mediaPath: mediaMap.get(msg.localId) ? `http://127.0.0.1:${this.port}/api/v1/media/${mediaMap.get(msg.localId)!.relativePath}` : undefined
       }
     })
 
