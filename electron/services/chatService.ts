@@ -3438,9 +3438,10 @@ class ChatService {
       const datPath = await this.findDatFile(actualAccountDir, baseName, sessionId)
       if (!datPath) return { success: false, error: '未找到图片源文件 (.dat)' }
 
-      // 4. 获取解密密钥
-      const xorKeyRaw = this.configService.get('imageXorKey')
-      const aesKeyRaw = this.configService.get('imageAesKey') || msg.aesKey
+      // 4. 获取解密密钥（优先使用当前 wxid 对应的密钥）
+      const imageKeys = this.configService.getImageKeysForCurrentWxid()
+      const xorKeyRaw = imageKeys.xorKey
+      const aesKeyRaw = imageKeys.aesKey || msg.aesKey
 
       if (!xorKeyRaw) return { success: false, error: '未配置图片 XOR 密钥，请在设置中自动获取' }
 

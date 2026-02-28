@@ -4,6 +4,7 @@ import { existsSync, copyFileSync, mkdirSync } from 'fs'
 import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 import os from 'os'
+import crypto from 'crypto'
 
 const execFileAsync = promisify(execFile)
 
@@ -637,7 +638,16 @@ export class KeyService {
     return { success: false, error: '获取密钥超时', logs }
   }
 
-  // --- Image Key (通过 DLL 从缓存目录直接获取) ---
+  // --- Image Key (通过 DLL 从缓存目录获取 code，用前端 wxid 计算密钥) ---
+
+  private cleanWxid(wxid: string): string {
+    // 截断到第二个下划线: wxid_g4pshorcc0r529_da6c → wxid_g4pshorcc0r529
+    const first = wxid.indexOf('_')
+    if (first === -1) return wxid
+    const second = wxid.indexOf('_', first + 1)
+    if (second === -1) return wxid
+    return wxid.substring(0, second)
+  }
 
   async autoGetImageKey(
       manualDir?: string,
@@ -664,41 +674,51 @@ export class KeyService {
       return { success: false, error: '解析密钥数据失败' }
     }
 
-    // 从 manualDir 中提取 wxid 用于精确匹配
-    // 前端传入的格式是 dbPath/wxid_xxx_1234，取最后一段目录名再清理后缀
-    let targetWxid: string | null = null
+    // 从任意账号提取 code 列表（code 来自 kvcomm，与 wxid 无关，所有账号都一样）
+    const accounts: any[] = parsed.accounts ?? []
+    if (!accounts.length || !accounts[0]?.keys?.length) {
+      return { success: false, error: '未找到有效的密钥码（kvcomm 缓存为空）' }
+    }
+
+    const codes: number[] = accounts[0].keys.map((k: any) => k.code)
+    console.log('[ImageKey] codes:', codes, 'DLL wxids:', accounts.map((a: any) => a.wxid))
+
+    // 从 manualDir 提取前端已配置好的正确 wxid
+    // 格式: "D:\weixin\xwechat_files\wxid_xxx_1234" → "wxid_xxx_1234"
+    let targetWxid = ''
     if (manualDir) {
       const dirName = manualDir.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? ''
-      // 与 DLL 的 CleanWxid 逻辑一致：wxid_a_b_c → wxid_a
-      const parts = dirName.split('_')
-      if (parts.length >= 3 && parts[0] === 'wxid') {
-        targetWxid = `${parts[0]}_${parts[1]}`
-      } else if (dirName.startsWith('wxid_')) {
+      if (dirName.startsWith('wxid_')) {
         targetWxid = dirName
       }
     }
 
-    const accounts: any[] = parsed.accounts ?? []
-    if (!accounts.length) {
-      return { success: false, error: '未找到有效的密钥组合' }
+    if (!targetWxid) {
+      // 无法从 manualDir 提取 wxid，回退到 DLL 发现的第一个
+      targetWxid = accounts[0].wxid
+      console.log('[ImageKey] 无法从 manualDir 提取 wxid，使用 DLL 发现的:', targetWxid)
     }
 
-    // 优先匹配 wxid，找不到则回退到第一个
-    const matchedAccount = targetWxid
-      ? (accounts.find((a: any) => a.wxid === targetWxid) ?? accounts[0])
-      : accounts[0]
+    // CleanWxid: 截断到第二个下划线，与 xkey 算法一致
+    const cleanedWxid = this.cleanWxid(targetWxid)
+    console.log('[ImageKey] wxid:', targetWxid, '→ cleaned:', cleanedWxid)
 
-    if (!matchedAccount?.keys?.length) {
-      return { success: false, error: '未找到有效的密钥组合' }
-    }
+    // 用 cleanedWxid + code 本地计算密钥
+    // xorKey = code & 0xFF
+    // aesKey = MD5(code.toString() + cleanedWxid).substring(0, 16)
+    const code = codes[0]
+    const xorKey = code & 0xFF
+    const dataToHash = code.toString() + cleanedWxid
+    const md5Full = crypto.createHash('md5').update(dataToHash).digest('hex')
+    const aesKey = md5Full.substring(0, 16)
 
-    const firstKey = matchedAccount.keys[0]
-    onProgress?.(`密钥获取成功 (wxid: ${matchedAccount.wxid}, code: ${firstKey.code})`)
+    onProgress?.(`密钥获取成功 (wxid: ${targetWxid}, code: ${code})`)
+    console.log('[ImageKey] 计算结果: xorKey=', xorKey, 'aesKey=', aesKey)
 
     return {
       success: true,
-      xorKey: firstKey.xorKey,
-      aesKey: firstKey.aesKey
+      xorKey,
+      aesKey
     }
   }
 }

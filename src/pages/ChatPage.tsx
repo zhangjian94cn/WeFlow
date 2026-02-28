@@ -300,6 +300,7 @@ function ChatPage(_props: ChatPageProps) {
   const [jumpStartTime, setJumpStartTime] = useState(0)
   const [jumpEndTime, setJumpEndTime] = useState(0)
   const [showJumpDialog, setShowJumpDialog] = useState(false)
+  const isDateJumpRef = useRef(false)
   const [messageDates, setMessageDates] = useState<Set<string>>(new Set())
   const [loadingDates, setLoadingDates] = useState(false)
   const messageDatesCache = useRef<Map<string, Set<string>>>(new Map())
@@ -858,7 +859,7 @@ function ChatPage(_props: ChatPageProps) {
   const currentBatchSizeRef = useRef(50)
 
   // 加载消息
-  const loadMessages = async (sessionId: string, offset = 0, startTime = 0, endTime = 0) => {
+  const loadMessages = async (sessionId: string, offset = 0, startTime = 0, endTime = 0, ascending = false) => {
     const listEl = messageListRef.current
     const session = sessionMapRef.current.get(sessionId)
     const unreadCount = session?.unreadCount ?? 0
@@ -892,7 +893,7 @@ function ChatPage(_props: ChatPageProps) {
     const firstMsgEl = listEl?.querySelector('.message-wrapper') as HTMLElement | null
 
     try {
-      const result = await window.electronAPI.chat.getMessages(sessionId, offset, messageLimit, startTime, endTime) as {
+      const result = await window.electronAPI.chat.getMessages(sessionId, offset, messageLimit, startTime, endTime, ascending) as {
         success: boolean;
         messages?: Message[];
         hasMore?: boolean;
@@ -930,10 +931,15 @@ function ChatPage(_props: ChatPageProps) {
             }
           }
 
-          // 首次加载滚动到底部
+          // 日期跳转时滚动到顶部，否则滚动到底部
           requestAnimationFrame(() => {
             if (messageListRef.current) {
-              messageListRef.current.scrollTop = messageListRef.current.scrollHeight
+              if (isDateJumpRef.current) {
+                messageListRef.current.scrollTop = 0
+                isDateJumpRef.current = false
+              } else {
+                messageListRef.current.scrollTop = messageListRef.current.scrollHeight
+              }
             }
           })
         } else {
@@ -966,13 +972,18 @@ function ChatPage(_props: ChatPageProps) {
             })
           }
         }
-        setHasMoreMessages(result.hasMore ?? false)
-        // 如果是按 endTime 跳转加载，且结果刚好满批，可能后面（更晚）还有消息
-        if (offset === 0) {
-          if (endTime > 0) {
-            setHasMoreLater(true)
-          } else {
-            setHasMoreLater(false)
+        // 日期跳转(ascending=true)：不往上加载更早的，往下加载更晚的
+        if (ascending) {
+          setHasMoreMessages(false)
+          setHasMoreLater(result.hasMore ?? false)
+        } else {
+          setHasMoreMessages(result.hasMore ?? false)
+          if (offset === 0) {
+            if (endTime > 0) {
+              setHasMoreLater(true)
+            } else {
+              setHasMoreLater(false)
+            }
           }
         }
         setCurrentOffset(offset + result.messages.length)
@@ -2270,11 +2281,13 @@ function ChatPage(_props: ChatPageProps) {
                   onClose={() => setShowJumpDialog(false)}
                   onSelect={(date) => {
                     if (!currentSessionId) return
+                    const start = Math.floor(date.setHours(0, 0, 0, 0) / 1000)
                     const end = Math.floor(date.setHours(23, 59, 59, 999) / 1000)
+                    isDateJumpRef.current = true
                     setCurrentOffset(0)
-                    setJumpStartTime(0)
+                    setJumpStartTime(start)
                     setJumpEndTime(end)
-                    loadMessages(currentSessionId, 0, 0, end)
+                    loadMessages(currentSessionId, 0, start, end, true)
                   }}
                   messageDates={messageDates}
                   loadingDates={loadingDates}

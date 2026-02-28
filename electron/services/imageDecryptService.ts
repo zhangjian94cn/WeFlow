@@ -240,7 +240,9 @@ export class ImageDecryptService {
         }
       }
 
-      const xorKeyRaw = this.configService.get('imageXorKey') as unknown
+      // 优先使用当前 wxid 对应的密钥，找不到则回退到全局配置
+      const imageKeys = this.configService.getImageKeysForCurrentWxid()
+      const xorKeyRaw = imageKeys.xorKey
       // 支持十六进制格式（如 0x53）和十进制格式
       let xorKey: number
       if (typeof xorKeyRaw === 'number') {
@@ -257,7 +259,7 @@ export class ImageDecryptService {
         return { success: false, error: '未配置图片解密密钥' }
       }
 
-      const aesKeyRaw = this.configService.get('imageAesKey')
+      const aesKeyRaw = imageKeys.aesKey
       const aesKey = this.resolveAesKey(aesKeyRaw)
 
       this.logInfo('开始解密DAT文件', { datPath, xorKey, hasAesKey: !!aesKey })
