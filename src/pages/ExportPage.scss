@@ -322,6 +322,15 @@
     &:hover {
       background: var(--primary-hover);
     }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.86;
+    }
+
+    &.running {
+      background: var(--primary-hover);
+    }
   }
 
   &.skeleton-card {

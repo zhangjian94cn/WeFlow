@@ -1892,6 +1892,21 @@ function ExportPage() {
     return set
   }, [tasks])
 
+  const runningCardTypes = useMemo(() => {
+    const set = new Set<ContentCardType>()
+    for (const task of tasks) {
+      if (task.status !== 'running') continue
+      if (task.payload.scope === 'sns') {
+        set.add('sns')
+        continue
+      }
+      if (task.payload.scope === 'content' && task.payload.contentType) {
+        set.add(task.payload.contentType)
+      }
+    }
+    return set
+  }, [tasks])
+
   const contentCards = useMemo(() => {
     const scopeSessions = sessions.filter(isContentScopeSession)
     const totalSessions = tabCounts.private + tabCounts.group + tabCounts.former_friend
@@ -2498,6 +2513,7 @@ function ExportPage() {
           const isCardStatsLoading = card.type === 'sns'
             ? isSnsCardStatsLoading
             : isSessionCardStatsLoading
+          const isCardRunning = runningCardTypes.has(card.type)
           return (
             <div key={card.type} className="content-card">
               <div className="card-header">
@@ -2518,7 +2534,8 @@ function ExportPage() {
                 ))}
               </div>
               <button
-                className="card-export-btn"
+                className={`card-export-btn ${isCardRunning ? 'running' : ''}`}
+                disabled={isCardRunning}
                 onClick={() => {
                   if (card.type === 'sns') {
                     openSnsExport()
@@ -2527,7 +2544,7 @@ function ExportPage() {
                   openContentExport(card.type)
                 }}
               >
-                导出
+                {isCardRunning ? '导出中' : '导出'}
               </button>
             </div>
           )
