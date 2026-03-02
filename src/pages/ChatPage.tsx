@@ -932,7 +932,6 @@ function ChatPage(_props: ChatPageProps) {
       }
 
       let refreshIncludeRelations = false
-      let shouldRefreshStats = false
       if (statsResultSettled.status === 'fulfilled' && statsResultSettled.value.success) {
         const metric = statsResultSettled.value.data?.[normalizedSessionId] as SessionExportMetric | undefined
         const cacheMeta = statsResultSettled.value.cache?.[normalizedSessionId] as SessionExportCacheMeta | undefined
@@ -950,39 +949,6 @@ function ChatPage(_props: ChatPageProps) {
             }
           })
         }
-        shouldRefreshStats = Array.isArray(statsResultSettled.value.needsRefresh) &&
-          statsResultSettled.value.needsRefresh.includes(normalizedSessionId)
-      }
-
-      if (shouldRefreshStats) {
-        setIsRefreshingDetailStats(true)
-        void (async () => {
-          try {
-            const freshResult = await window.electronAPI.chat.getExportSessionStats(
-              [normalizedSessionId],
-              { includeRelations: refreshIncludeRelations, forceRefresh: true }
-            )
-            if (requestSeq !== detailRequestSeqRef.current) return
-            if (freshResult.success && freshResult.data) {
-              const metric = freshResult.data[normalizedSessionId] as SessionExportMetric | undefined
-              const cacheMeta = freshResult.cache?.[normalizedSessionId] as SessionExportCacheMeta | undefined
-              if (metric) {
-                applySessionDetailStats(
-                  normalizedSessionId,
-                  metric,
-                  cacheMeta,
-                  refreshIncludeRelations ? true : undefined
-                )
-              }
-            }
-          } catch (error) {
-            console.error('刷新会话统计失败:', error)
-          } finally {
-            if (requestSeq === detailRequestSeqRef.current) {
-              setIsRefreshingDetailStats(false)
-            }
-          }
-        })()
       }
     } catch (e) {
       console.error('加载会话详情补充统计失败:', e)
