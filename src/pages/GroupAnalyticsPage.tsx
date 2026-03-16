@@ -37,7 +37,7 @@ interface GroupMessageRank {
   messageCount: number
 }
 
-type AnalysisFunction = 'members' | 'memberMessages' | 'memberExport' | 'ranking' | 'activeHours' | 'mediaStats'
+type AnalysisFunction = 'members' | 'memberMessages' | 'ranking' | 'activeHours' | 'mediaStats'
 type MemberExportFormat = 'chatlab' | 'chatlab-jsonl' | 'json' | 'arkme-json' | 'html' | 'txt' | 'excel' | 'weclone'
 
 interface MemberMessageExportOptions {
@@ -170,7 +170,6 @@ function GroupAnalyticsPage() {
   const [memberMessagesHasMore, setMemberMessagesHasMore] = useState(false)
   const [memberMessagesCursor, setMemberMessagesCursor] = useState(0)
   const [memberMessagesLoadingMore, setMemberMessagesLoadingMore] = useState(false)
-  const [selectedExportMemberUsername, setSelectedExportMemberUsername] = useState('')
   const [selectedMessageMemberUsername, setSelectedMessageMemberUsername] = useState('')
   const [exportFolder, setExportFolder] = useState('')
   const [memberExportOptions, setMemberExportOptions] = useState<MemberMessageExportOptions>({
@@ -188,14 +187,12 @@ function GroupAnalyticsPage() {
   // 成员详情弹框
   const [selectedMember, setSelectedMember] = useState<GroupMember | null>(null)
   const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [showMemberExportModal, setShowMemberExportModal] = useState(false)
   const [showMessageMemberSelect, setShowMessageMemberSelect] = useState(false)
-  const [showMemberSelect, setShowMemberSelect] = useState(false)
   const [showFormatSelect, setShowFormatSelect] = useState(false)
   const [showDisplayNameSelect, setShowDisplayNameSelect] = useState(false)
   const [messageMemberSearchKeyword, setMessageMemberSearchKeyword] = useState('')
-  const [memberSearchKeyword, setMemberSearchKeyword] = useState('')
   const messageMemberSelectDropdownRef = useRef<HTMLDivElement>(null)
-  const memberSelectDropdownRef = useRef<HTMLDivElement>(null)
   const formatDropdownRef = useRef<HTMLDivElement>(null)
   const displayNameDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -241,10 +238,6 @@ function GroupAnalyticsPage() {
     { value: 'remark', label: '备注优先', desc: '有备注显示备注，否则显示昵称' },
     { value: 'nickname', label: '微信昵称', desc: '始终显示微信昵称' }
   ]), [])
-  const selectedExportMember = useMemo(
-    () => members.find(member => member.username === selectedExportMemberUsername) || null,
-    [members, selectedExportMemberUsername]
-  )
   const selectedMessageMember = useMemo(
     () => members.find(member => member.username === selectedMessageMemberUsername) || null,
     [members, selectedMessageMemberUsername]
@@ -257,9 +250,6 @@ function GroupAnalyticsPage() {
     () => displayNameOptions.find(option => option.value === memberExportOptions.displayNamePreference) || displayNameOptions[0],
     [displayNameOptions, memberExportOptions.displayNamePreference]
   )
-  const filteredMemberOptions = useMemo(() => {
-    return filterMembersByKeyword(members, memberSearchKeyword)
-  }, [memberSearchKeyword, members])
   const filteredMessageMemberOptions = useMemo(() => {
     return filterMembersByKeyword(members, messageMemberSearchKeyword)
   }, [members, messageMemberSearchKeyword])
@@ -353,28 +343,20 @@ function GroupAnalyticsPage() {
 
   useEffect(() => {
     if (members.length === 0) {
-      setSelectedExportMemberUsername('')
       setSelectedMessageMemberUsername('')
       return
-    }
-    const exportExists = members.some(member => member.username === selectedExportMemberUsername)
-    if (!exportExists) {
-      setSelectedExportMemberUsername(members[0].username)
     }
     const messageExists = members.some(member => member.username === selectedMessageMemberUsername)
     if (!messageExists) {
       setSelectedMessageMemberUsername(members[0].username)
     }
-  }, [members, selectedExportMemberUsername, selectedMessageMemberUsername])
+  }, [members, selectedMessageMemberUsername])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node
       if (showMessageMemberSelect && messageMemberSelectDropdownRef.current && !messageMemberSelectDropdownRef.current.contains(target)) {
         setShowMessageMemberSelect(false)
-      }
-      if (showMemberSelect && memberSelectDropdownRef.current && !memberSelectDropdownRef.current.contains(target)) {
-        setShowMemberSelect(false)
       }
       if (showFormatSelect && formatDropdownRef.current && !formatDropdownRef.current.contains(target)) {
         setShowFormatSelect(false)
@@ -385,7 +367,7 @@ function GroupAnalyticsPage() {
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showDisplayNameSelect, showFormatSelect, showMemberSelect, showMessageMemberSelect])
+  }, [showDisplayNameSelect, showFormatSelect, showMessageMemberSelect])
 
   useEffect(() => {
     if (preselectAppliedRef.current) return
@@ -422,7 +404,7 @@ function GroupAnalyticsPage() {
 
   // 日期范围变化时自动刷新
   useEffect(() => {
-    if (dateRangeReady && selectedGroup && selectedFunction && selectedFunction !== 'members' && selectedFunction !== 'memberExport') {
+    if (dateRangeReady && selectedGroup && selectedFunction && selectedFunction !== 'members') {
       setDateRangeReady(false)
       loadFunctionData(selectedFunction)
     }
@@ -436,6 +418,7 @@ function GroupAnalyticsPage() {
       setSelectedFunction(null)
       setMembers([])
       resetMemberMessageState()
+      setShowMemberExportModal(false)
       setRankings([])
       setActiveHours({})
       setMediaStats(null)
@@ -450,10 +433,8 @@ function GroupAnalyticsPage() {
     setSelectedGroupId(group.username)
     setSelectedFunction(null)
     setSelectedMember(null)
+    setShowMemberExportModal(false)
     resetMemberMessageState()
-    setSelectedExportMemberUsername('')
-    setMemberSearchKeyword('')
-    setShowMemberSelect(false)
     setShowFormatSelect(false)
     setShowDisplayNameSelect(false)
   }
@@ -577,23 +558,6 @@ function GroupAnalyticsPage() {
           finishBackgroundTask(taskId, 'completed', {
             detail: `成员消息加载完成，已读取 ${page.messages.length} 条`,
             progressText: `${page.messages.length} 条`
-          })
-          break
-        }
-        case 'memberExport': {
-          updateBackgroundTask(taskId, {
-            detail: '正在读取导出成员列表',
-            progressText: '成员导出'
-          })
-          const result = await window.electronAPI.groupAnalytics.getGroupMembers(targetGroup.username)
-          if (isBackgroundTaskCancelRequested(taskId)) {
-            finishBackgroundTask(taskId, 'canceled', { detail: '已停止后续加载，成员导出列表未继续写入' })
-            return
-          }
-          if (result.success && result.data) setMembers(result.data)
-          finishBackgroundTask(taskId, result.success ? 'completed' : 'failed', {
-            detail: result.success ? `成员导出列表加载完成，共 ${result.data?.length || 0} 人` : (result.error || '读取成员导出列表失败'),
-            progressText: result.success ? `${result.data?.length || 0} 人` : '失败'
           })
           break
         }
@@ -731,7 +695,6 @@ function GroupAnalyticsPage() {
   }
 
   const handleDateRangeComplete = () => {
-    if (selectedFunction === 'memberExport') return
     setDateRangeReady(true)
   }
 
@@ -796,6 +759,13 @@ function GroupAnalyticsPage() {
     await loadFunctionData('memberMessages', selectedGroup, member.username)
   }
 
+  const handleOpenMemberExportModal = () => {
+    setShowMessageMemberSelect(false)
+    setShowFormatSelect(false)
+    setShowDisplayNameSelect(false)
+    setShowMemberExportModal(true)
+  }
+
   const handleExportMembers = async () => {
     if (!selectedGroup || isExportingMembers) return
     setIsExportingMembers(true)
@@ -858,8 +828,8 @@ function GroupAnalyticsPage() {
   }
 
   const handleExportMemberMessages = async () => {
-    if (!selectedGroup || !selectedExportMemberUsername || !exportFolder || isExportingMemberMessages) return
-    const member = members.find(item => item.username === selectedExportMemberUsername)
+    if (!selectedGroup || !selectedMessageMemberUsername || !exportFolder || isExportingMemberMessages) return
+    const member = members.find(item => item.username === selectedMessageMemberUsername)
     if (!member) {
       alert('请先选择成员')
       return
@@ -893,6 +863,7 @@ function GroupAnalyticsPage() {
         }
       )
       if (result.success && (result.successCount ?? 0) > 0) {
+        setShowMemberExportModal(false)
         alert(`导出成功：${member.displayName || member.username}`)
       } else {
         alert(`导出失败：${result.error || '未知错误'}`)
@@ -1080,11 +1051,6 @@ function GroupAnalyticsPage() {
           <span>成员消息查看</span>
           <small>按成员筛选并分页查看群聊消息</small>
         </div>
-        <div className="function-card" onClick={() => handleFunctionSelect('memberExport')}>
-          <Download size={32} />
-          <span>成员消息导出</span>
-          <small>按成员筛选并导出群聊记录</small>
-        </div>
         <div className="function-card" onClick={() => handleFunctionSelect('ranking')}>
           <BarChart3 size={32} />
           <span>群聊发言排行</span>
@@ -1109,7 +1075,6 @@ function GroupAnalyticsPage() {
       switch (selectedFunction) {
         case 'members': return '群成员查看'
         case 'memberMessages': return '成员消息查看'
-        case 'memberExport': return '成员消息导出'
         case 'ranking': return '群聊发言排行'
         case 'activeHours': return '群聊活跃时段'
         case 'mediaStats': return '媒体内容统计'
@@ -1177,15 +1142,16 @@ function GroupAnalyticsPage() {
                     <div className="member-message-empty">暂无群成员数据，请先刷新。</div>
                   ) : (
                     <>
+                      <div className="member-message-summary-text">已加载 {memberMessages.length} 条消息</div>
+
                       <div className="member-message-toolbar">
                         <div className="member-export-field" ref={messageMemberSelectDropdownRef}>
                           <span>查看成员</span>
                           <button
                             type="button"
-                            className={`select-trigger ${showMessageMemberSelect ? 'open' : ''}`}
+                            className={`select-trigger member-message-select-trigger ${showMessageMemberSelect ? 'open' : ''}`}
                             onClick={() => {
                               setShowMessageMemberSelect(prev => !prev)
-                              setShowMemberSelect(false)
                               setShowFormatSelect(false)
                               setShowDisplayNameSelect(false)
                             }}
@@ -1238,11 +1204,15 @@ function GroupAnalyticsPage() {
                             </div>
                           )}
                         </div>
-                        <div className="member-message-summary-card">
-                          <span className="summary-title">已加载 {memberMessages.length} 条消息</span>
-                          <span className="summary-desc">
-                            当前成员：{selectedMessageMember?.displayName || selectedMessageMember?.username || '未选择成员'}
-                          </span>
+                        <div className="member-message-toolbar-actions">
+                          <button
+                            className="member-export-start-btn"
+                            onClick={handleOpenMemberExportModal}
+                            disabled={!selectedMessageMemberUsername}
+                          >
+                            <Download size={16} />
+                            <span>导出</span>
+                          </button>
                         </div>
                       </div>
 
@@ -1279,234 +1249,6 @@ function GroupAnalyticsPage() {
                           )}
                         </div>
                       )}
-                    </>
-                  )}
-                </div>
-              )}
-              {selectedFunction === 'memberExport' && (
-                <div className="member-export-panel">
-                  {members.length === 0 ? (
-                    <div className="member-export-empty">暂无群成员数据，请先刷新。</div>
-                  ) : (
-                    <>
-                      <div className="member-export-grid">
-                        <div className="member-export-field" ref={memberSelectDropdownRef}>
-                          <span>导出成员</span>
-                          <button
-                            type="button"
-                            className={`select-trigger ${showMemberSelect ? 'open' : ''}`}
-                            onClick={() => {
-                              setShowMemberSelect(prev => !prev)
-                              setShowFormatSelect(false)
-                              setShowDisplayNameSelect(false)
-                            }}
-                          >
-                            <div className="member-select-trigger-value">
-                              <Avatar
-                                src={selectedExportMember?.avatarUrl}
-                                name={selectedExportMember?.displayName || selectedExportMember?.username || '?'}
-                                size={24}
-                              />
-                              <span className="select-value">{selectedExportMember?.displayName || selectedExportMember?.username || '请选择成员'}</span>
-                            </div>
-                            <ChevronDown size={16} />
-                          </button>
-                          {showMemberSelect && (
-                            <div className="select-dropdown member-select-dropdown">
-                              <div className="member-select-search">
-                                <Search size={14} />
-                                <input
-                                  type="text"
-                                  value={memberSearchKeyword}
-                                  onChange={e => setMemberSearchKeyword(e.target.value)}
-                                  placeholder="搜索 wxid / 昵称 / 备注 / 微信号"
-                                />
-                              </div>
-                              <div className="member-select-options">
-                                {filteredMemberOptions.length === 0 ? (
-                                  <div className="member-select-empty">无匹配成员</div>
-                                ) : (
-                                  filteredMemberOptions.map(member => (
-                                    <button
-                                      key={member.username}
-                                      type="button"
-                                      className={`select-option member-select-option ${selectedExportMemberUsername === member.username ? 'active' : ''}`}
-                                      onClick={() => {
-                                        setSelectedExportMemberUsername(member.username)
-                                        setShowMemberSelect(false)
-                                      }}
-                                    >
-                                      <Avatar src={member.avatarUrl} name={member.displayName} size={28} />
-                                      <span className="member-option-main">{member.displayName || member.username}</span>
-                                      <span className="member-option-meta">
-                                        wxid: {member.username}
-                                        {member.alias ? ` · 微信号: ${member.alias}` : ''}
-                                        {member.remark ? ` · 备注: ${member.remark}` : ''}
-                                        {member.nickname ? ` · 昵称: ${member.nickname}` : ''}
-                                      </span>
-                                    </button>
-                                  ))
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        <div className="member-export-field" ref={formatDropdownRef}>
-                          <span>导出格式</span>
-                          <button
-                            type="button"
-                            className={`select-trigger ${showFormatSelect ? 'open' : ''}`}
-                            onClick={() => {
-                              setShowFormatSelect(prev => !prev)
-                              setShowMemberSelect(false)
-                              setShowDisplayNameSelect(false)
-                            }}
-                          >
-                            <span className="select-value">{selectedFormatOption.label}</span>
-                            <ChevronDown size={16} />
-                          </button>
-                          {showFormatSelect && (
-                            <div className="select-dropdown">
-                            {memberExportFormatOptions.map(option => (
-                              <button
-                                key={option.value}
-                                type="button"
-                                className={`select-option ${memberExportOptions.format === option.value ? 'active' : ''}`}
-                                onClick={() => {
-                                  handleMemberExportFormatChange(option.value)
-                                  setShowFormatSelect(false)
-                                }}
-                              >
-                                <span className="option-label">{option.label}</span>
-                                <span className="option-desc">{option.desc}</span>
-                              </button>
-                            ))}
-                            </div>
-                          )}
-                        </div>
-                        <div className="member-export-field member-export-folder">
-                          <span>导出目录</span>
-                          <div className="member-export-folder-row">
-                            <input value={exportFolder} readOnly placeholder="请选择导出目录" />
-                            <button type="button" onClick={handleChooseExportFolder}>
-                              选择目录
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="member-export-options">
-                        <div className="member-export-chip-group">
-                          <span className="chip-group-label">媒体导出</span>
-                          <button
-                            type="button"
-                            className={`export-filter-chip ${memberExportOptions.exportMedia ? 'active' : ''}`}
-                            onClick={() => setMemberExportOptions(prev => ({ ...prev, exportMedia: !prev.exportMedia }))}
-                          >
-                            导出媒体文件
-                          </button>
-                        </div>
-                        <div className="member-export-chip-group">
-                          <span className="chip-group-label">媒体类型</span>
-                          <div className="member-export-chip-list">
-                            <button
-                              type="button"
-                              className={`export-filter-chip ${memberExportOptions.exportImages ? 'active' : ''} ${!memberExportOptions.exportMedia ? 'disabled' : ''}`}
-                              disabled={!memberExportOptions.exportMedia}
-                              onClick={() => setMemberExportOptions(prev => ({ ...prev, exportImages: !prev.exportImages }))}
-                            >
-                              图片
-                            </button>
-                            <button
-                              type="button"
-                              className={`export-filter-chip ${memberExportOptions.exportVoices ? 'active' : ''} ${!memberExportOptions.exportMedia ? 'disabled' : ''}`}
-                              disabled={!memberExportOptions.exportMedia}
-                              onClick={() => setMemberExportOptions(prev => ({ ...prev, exportVoices: !prev.exportVoices }))}
-                            >
-                              语音
-                            </button>
-                            <button
-                              type="button"
-                              className={`export-filter-chip ${memberExportOptions.exportVideos ? 'active' : ''} ${!memberExportOptions.exportMedia ? 'disabled' : ''}`}
-                              disabled={!memberExportOptions.exportMedia}
-                              onClick={() => setMemberExportOptions(prev => ({ ...prev, exportVideos: !prev.exportVideos }))}
-                            >
-                              视频
-                            </button>
-                            <button
-                              type="button"
-                              className={`export-filter-chip ${memberExportOptions.exportEmojis ? 'active' : ''} ${!memberExportOptions.exportMedia ? 'disabled' : ''}`}
-                              disabled={!memberExportOptions.exportMedia}
-                              onClick={() => setMemberExportOptions(prev => ({ ...prev, exportEmojis: !prev.exportEmojis }))}
-                            >
-                              表情
-                            </button>
-                          </div>
-                        </div>
-                        <div className="member-export-chip-group">
-                          <span className="chip-group-label">附加选项</span>
-                          <div className="member-export-chip-list">
-                            <button
-                              type="button"
-                              className={`export-filter-chip ${memberExportOptions.exportVoiceAsText ? 'active' : ''}`}
-                              onClick={() => setMemberExportOptions(prev => ({ ...prev, exportVoiceAsText: !prev.exportVoiceAsText }))}
-                            >
-                              语音转文字
-                            </button>
-                            <button
-                              type="button"
-                              className={`export-filter-chip ${memberExportOptions.exportAvatars ? 'active' : ''}`}
-                              onClick={() => setMemberExportOptions(prev => ({ ...prev, exportAvatars: !prev.exportAvatars }))}
-                            >
-                              导出头像
-                            </button>
-                          </div>
-                        </div>
-                        <div className="member-export-field" ref={displayNameDropdownRef}>
-                          <span>显示名称规则</span>
-                          <button
-                            type="button"
-                            className={`select-trigger ${showDisplayNameSelect ? 'open' : ''}`}
-                            onClick={() => {
-                              setShowDisplayNameSelect(prev => !prev)
-                              setShowMemberSelect(false)
-                              setShowFormatSelect(false)
-                            }}
-                          >
-                            <span className="select-value">{selectedDisplayNameOption.label}</span>
-                            <ChevronDown size={16} />
-                          </button>
-                          {showDisplayNameSelect && (
-                            <div className="select-dropdown">
-                              {displayNameOptions.map(option => (
-                                <button
-                                  key={option.value}
-                                  type="button"
-                                  className={`select-option ${memberExportOptions.displayNamePreference === option.value ? 'active' : ''}`}
-                                  onClick={() => {
-                                    setMemberExportOptions(prev => ({ ...prev, displayNamePreference: option.value }))
-                                    setShowDisplayNameSelect(false)
-                                  }}
-                                >
-                                  <span className="option-label">{option.label}</span>
-                                  <span className="option-desc">{option.desc}</span>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="member-export-actions">
-                        <button
-                          className="member-export-start-btn"
-                          onClick={handleExportMemberMessages}
-                          disabled={isExportingMemberMessages || !selectedExportMemberUsername || !exportFolder}
-                        >
-                          {isExportingMemberMessages ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
-                          <span>{isExportingMemberMessages ? '导出中...' : '开始导出'}</span>
-                        </button>
-                      </div>
                     </>
                   )}
                 </div>
@@ -1572,18 +1314,203 @@ function GroupAnalyticsPage() {
 
 
   const renderDetailPanel = () => {
+    if (selectedFunction) {
+      return renderFunctionContent()
+    }
+
     if (!selectedGroup) {
       return (
-        <div className="placeholder">
-          <Users size={64} />
+        <>
+          <div className="detail-drag-region" aria-hidden="true" />
+          <div className="placeholder">
+            <Users size={64} />
           <p>请从左侧选择一个群聊进行分析</p>
-        </div>
+          </div>
+        </>
       )
     }
-    if (!selectedFunction) {
-      return renderFunctionMenu()
-    }
-    return renderFunctionContent()
+    return (
+      <>
+        <div className="detail-drag-region" aria-hidden="true" />
+        {renderFunctionMenu()}
+      </>
+    )
+  }
+
+  const renderMemberExportModal = () => {
+    if (!showMemberExportModal) return null
+
+    return (
+      <div className="member-modal-overlay" onClick={() => setShowMemberExportModal(false)}>
+        <div className="member-export-modal" onClick={e => e.stopPropagation()}>
+          <button className="modal-close" onClick={() => setShowMemberExportModal(false)}>
+            <X size={20} />
+          </button>
+          <div className="member-export-modal-header">
+            <h3>导出成员消息</h3>
+            <p>{selectedMessageMember?.displayName || selectedMessageMember?.username || '未选择成员'}</p>
+          </div>
+
+          <div className="member-export-panel">
+            <div className="member-export-grid">
+              <div className="member-export-field" ref={formatDropdownRef}>
+                <span>导出格式</span>
+                <button
+                  type="button"
+                  className={`select-trigger ${showFormatSelect ? 'open' : ''}`}
+                  onClick={() => {
+                    setShowFormatSelect(prev => !prev)
+                    setShowDisplayNameSelect(false)
+                  }}
+                >
+                  <span className="select-value">{selectedFormatOption.label}</span>
+                  <ChevronDown size={16} />
+                </button>
+                {showFormatSelect && (
+                  <div className="select-dropdown">
+                    {memberExportFormatOptions.map(option => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={`select-option ${memberExportOptions.format === option.value ? 'active' : ''}`}
+                        onClick={() => {
+                          handleMemberExportFormatChange(option.value)
+                          setShowFormatSelect(false)
+                        }}
+                      >
+                        <span className="option-label">{option.label}</span>
+                        <span className="option-desc">{option.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="member-export-field member-export-folder">
+                <span>导出目录</span>
+                <div className="member-export-folder-row">
+                  <input value={exportFolder} readOnly placeholder="请选择导出目录" />
+                  <button type="button" onClick={handleChooseExportFolder}>
+                    选择目录
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="member-export-options">
+              <div className="member-export-chip-group">
+                <span className="chip-group-label">媒体导出</span>
+                <button
+                  type="button"
+                  className={`export-filter-chip ${memberExportOptions.exportMedia ? 'active' : ''}`}
+                  onClick={() => setMemberExportOptions(prev => ({ ...prev, exportMedia: !prev.exportMedia }))}
+                >
+                  导出媒体文件
+                </button>
+              </div>
+              <div className="member-export-chip-group">
+                <span className="chip-group-label">媒体类型</span>
+                <div className="member-export-chip-list">
+                  <button
+                    type="button"
+                    className={`export-filter-chip ${memberExportOptions.exportImages ? 'active' : ''} ${!memberExportOptions.exportMedia ? 'disabled' : ''}`}
+                    disabled={!memberExportOptions.exportMedia}
+                    onClick={() => setMemberExportOptions(prev => ({ ...prev, exportImages: !prev.exportImages }))}
+                  >
+                    图片
+                  </button>
+                  <button
+                    type="button"
+                    className={`export-filter-chip ${memberExportOptions.exportVoices ? 'active' : ''} ${!memberExportOptions.exportMedia ? 'disabled' : ''}`}
+                    disabled={!memberExportOptions.exportMedia}
+                    onClick={() => setMemberExportOptions(prev => ({ ...prev, exportVoices: !prev.exportVoices }))}
+                  >
+                    语音
+                  </button>
+                  <button
+                    type="button"
+                    className={`export-filter-chip ${memberExportOptions.exportVideos ? 'active' : ''} ${!memberExportOptions.exportMedia ? 'disabled' : ''}`}
+                    disabled={!memberExportOptions.exportMedia}
+                    onClick={() => setMemberExportOptions(prev => ({ ...prev, exportVideos: !prev.exportVideos }))}
+                  >
+                    视频
+                  </button>
+                  <button
+                    type="button"
+                    className={`export-filter-chip ${memberExportOptions.exportEmojis ? 'active' : ''} ${!memberExportOptions.exportMedia ? 'disabled' : ''}`}
+                    disabled={!memberExportOptions.exportMedia}
+                    onClick={() => setMemberExportOptions(prev => ({ ...prev, exportEmojis: !prev.exportEmojis }))}
+                  >
+                    表情
+                  </button>
+                </div>
+              </div>
+              <div className="member-export-chip-group">
+                <span className="chip-group-label">附加选项</span>
+                <div className="member-export-chip-list">
+                  <button
+                    type="button"
+                    className={`export-filter-chip ${memberExportOptions.exportVoiceAsText ? 'active' : ''}`}
+                    onClick={() => setMemberExportOptions(prev => ({ ...prev, exportVoiceAsText: !prev.exportVoiceAsText }))}
+                  >
+                    语音转文字
+                  </button>
+                  <button
+                    type="button"
+                    className={`export-filter-chip ${memberExportOptions.exportAvatars ? 'active' : ''}`}
+                    onClick={() => setMemberExportOptions(prev => ({ ...prev, exportAvatars: !prev.exportAvatars }))}
+                  >
+                    导出头像
+                  </button>
+                </div>
+              </div>
+              <div className="member-export-field" ref={displayNameDropdownRef}>
+                <span>显示名称规则</span>
+                <button
+                  type="button"
+                  className={`select-trigger ${showDisplayNameSelect ? 'open' : ''}`}
+                  onClick={() => {
+                    setShowDisplayNameSelect(prev => !prev)
+                    setShowFormatSelect(false)
+                  }}
+                >
+                  <span className="select-value">{selectedDisplayNameOption.label}</span>
+                  <ChevronDown size={16} />
+                </button>
+                {showDisplayNameSelect && (
+                  <div className="select-dropdown">
+                    {displayNameOptions.map(option => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={`select-option ${memberExportOptions.displayNamePreference === option.value ? 'active' : ''}`}
+                        onClick={() => {
+                          setMemberExportOptions(prev => ({ ...prev, displayNamePreference: option.value }))
+                          setShowDisplayNameSelect(false)
+                        }}
+                      >
+                        <span className="option-label">{option.label}</span>
+                        <span className="option-desc">{option.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="member-export-actions">
+              <button
+                className="member-export-start-btn"
+                onClick={handleExportMemberMessages}
+                disabled={isExportingMemberMessages || !selectedMessageMemberUsername || !exportFolder}
+              >
+                {isExportingMemberMessages ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
+                <span>{isExportingMemberMessages ? '导出中...' : '开始导出'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -1597,6 +1524,7 @@ function GroupAnalyticsPage() {
         </div>
       </div>
       {renderMemberModal()}
+      {renderMemberExportModal()}
     </div>
   )
 }

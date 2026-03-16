@@ -4453,6 +4453,7 @@ class ExportService {
 
       const cleanedMyWxid = conn.cleanedWxid
       const isGroup = sessionId.includes('@chatroom')
+      const rawMyWxid = String(this.configService.get('myWxid') || '').trim()
 
       const sessionInfo = await this.getContactInfo(sessionId)
       const myInfo = await this.getContactInfo(cleanedMyWxid)
@@ -5650,6 +5651,7 @@ class ExportService {
 
       const cleanedMyWxid = conn.cleanedWxid
       const isGroup = sessionId.includes('@chatroom')
+      const rawMyWxid = String(this.configService.get('myWxid') || '').trim()
       const sessionInfo = await this.getContactInfo(sessionId)
       const myInfo = await this.getContactInfo(cleanedMyWxid)
       const contactCache = new Map<string, { success: boolean; contact?: any; error?: string }>()
