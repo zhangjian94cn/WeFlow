@@ -53,6 +53,7 @@ interface ConfigSchema {
   notificationFilterList: string[]
   messagePushEnabled: boolean
   windowCloseBehavior: 'ask' | 'tray' | 'quit'
+  quoteLayout: 'quote-top' | 'quote-bottom'
   wordCloudExcludeWords: string[]
 }
 
@@ -120,6 +121,7 @@ export class ConfigService {
       notificationFilterList: [],
       messagePushEnabled: false,
       windowCloseBehavior: 'ask',
+      quoteLayout: 'quote-top',
       wordCloudExcludeWords: []
     }
 

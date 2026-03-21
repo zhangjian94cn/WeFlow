@@ -118,6 +118,7 @@ function SettingsPage({ onClose }: SettingsPageProps = {}) {
   const [notificationFilterMode, setNotificationFilterMode] = useState<'all' | 'whitelist' | 'blacklist'>('all')
   const [notificationFilterList, setNotificationFilterList] = useState<string[]>([])
   const [windowCloseBehavior, setWindowCloseBehavior] = useState<configService.WindowCloseBehavior>('ask')
+  const [quoteLayout, setQuoteLayout] = useState<configService.QuoteLayout>('quote-top')
   const [filterSearchKeyword, setFilterSearchKeyword] = useState('')
   const [filterModeDropdownOpen, setFilterModeDropdownOpen] = useState(false)
   const [positionDropdownOpen, setPositionDropdownOpen] = useState(false)
@@ -314,6 +315,7 @@ function SettingsPage({ onClose }: SettingsPageProps = {}) {
       const savedNotificationFilterList = await configService.getNotificationFilterList()
       const savedMessagePushEnabled = await configService.getMessagePushEnabled()
       const savedWindowCloseBehavior = await configService.getWindowCloseBehavior()
+      const savedQuoteLayout = await configService.getQuoteLayout()
 
       const savedAuthEnabled = await window.electronAPI.auth.verifyEnabled()
       const savedAuthUseHello = await configService.getAuthUseHello()
@@ -351,6 +353,7 @@ function SettingsPage({ onClose }: SettingsPageProps = {}) {
       setNotificationFilterList(savedNotificationFilterList)
       setMessagePushEnabled(savedMessagePushEnabled)
       setWindowCloseBehavior(savedWindowCloseBehavior)
+      setQuoteLayout(savedQuoteLayout)
 
       const savedExcludeWords = await configService.getWordCloudExcludeWords()
       setWordCloudExcludeWords(savedExcludeWords)
@@ -1056,6 +1059,77 @@ function SettingsPage({ onClose }: SettingsPageProps = {}) {
             {currentTheme === theme.id && <div className="theme-check"><Check size={14} /></div>}
           </div>
         ))}
+      </div>
+
+      <div className="form-group">
+        <label>引用样式</label>
+        <span className="form-hint">选择聊天中引用消息与正文的上下顺序，右侧预览会同步展示布局差异。</span>
+        <div className="quote-layout-picker" role="radiogroup" aria-label="引用样式选择">
+          {[
+            {
+              value: 'quote-top' as const,
+              label: '引用在上',
+              description: '更接近当前 WeFlow 风格',
+              successMessage: '已切换为引用在上样式'
+            },
+            {
+              value: 'quote-bottom' as const,
+              label: '正文在上',
+              description: '更接近微信 / 密语风格',
+              successMessage: '已切换为正文在上样式'
+            }
+          ].map(option => {
+            const selected = quoteLayout === option.value
+            const quotePreview = (
+              <div className="quote-layout-preview-quote">
+                <span className="quote-layout-preview-sender">张三</span>
+                <span className="quote-layout-preview-text">这是一条被引用的消息</span>
+              </div>
+            )
+            const messagePreview = (
+              <div className="quote-layout-preview-message">这是当前发送的回复内容</div>
+            )
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                className={`quote-layout-card ${selected ? 'active' : ''}`}
+                onClick={async () => {
+                  if (selected) return
+                  setQuoteLayout(option.value)
+                  await configService.setQuoteLayout(option.value)
+                  showMessage(option.successMessage, true)
+                }}
+                role="radio"
+                aria-checked={selected}
+              >
+                <div className="quote-layout-card-header">
+                  <div className="quote-layout-card-title-group">
+                    <span className="quote-layout-card-title">{option.label}</span>
+                    <span className="quote-layout-card-desc">{option.description}</span>
+                  </div>
+                  <span className={`quote-layout-card-check ${selected ? 'active' : ''}`}>
+                    <Check size={14} />
+                  </span>
+                </div>
+                <div className={`quote-layout-preview ${option.value}`}>
+                  {option.value === 'quote-bottom' ? (
+                    <>
+                      {messagePreview}
+                      {quotePreview}
+                    </>
+                  ) : (
+                    <>
+                      {quotePreview}
+                      {messagePreview}
+                    </>
+                  )}
+                </div>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       <div className="divider" />

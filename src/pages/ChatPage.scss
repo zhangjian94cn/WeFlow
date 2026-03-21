@@ -2420,7 +2420,6 @@
   background: rgba(0, 0, 0, 0.04);
   border-left: 2px solid var(--primary);
   padding: 6px 10px;
-  margin-bottom: 8px;
   border-radius: 4px;
   font-size: 13px;
 
@@ -2482,6 +2481,14 @@
 
 .bubble-content {
   -webkit-app-region: no-drag;
+
+  &.quote-layout-top .quoted-message {
+    margin-bottom: 8px;
+  }
+
+  &.quote-layout-bottom .quoted-message {
+    margin-top: 8px;
+  }
 }
 
 // 时间分隔

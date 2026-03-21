@@ -66,6 +66,7 @@ export const CONFIG_KEYS = {
   NOTIFICATION_FILTER_LIST: 'notificationFilterList',
   MESSAGE_PUSH_ENABLED: 'messagePushEnabled',
   WINDOW_CLOSE_BEHAVIOR: 'windowCloseBehavior',
+  QUOTE_LAYOUT: 'quoteLayout',
 
   // 词云
   WORD_CLOUD_EXCLUDE_WORDS: 'wordCloudExcludeWords',
@@ -90,6 +91,7 @@ export interface ExportDefaultMediaConfig {
 }
 
 export type WindowCloseBehavior = 'ask' | 'tray' | 'quit'
+export type QuoteLayout = 'quote-top' | 'quote-bottom'
 
 const DEFAULT_EXPORT_MEDIA_CONFIG: ExportDefaultMediaConfig = {
   images: true,
@@ -1407,6 +1409,16 @@ export async function getWindowCloseBehavior(): Promise<WindowCloseBehavior> {
 
 export async function setWindowCloseBehavior(behavior: WindowCloseBehavior): Promise<void> {
   await config.set(CONFIG_KEYS.WINDOW_CLOSE_BEHAVIOR, behavior)
+}
+
+export async function getQuoteLayout(): Promise<QuoteLayout> {
+  const value = await config.get(CONFIG_KEYS.QUOTE_LAYOUT)
+  if (value === 'quote-bottom') return value
+  return 'quote-top'
+}
+
+export async function setQuoteLayout(layout: QuoteLayout): Promise<void> {
+  await config.set(CONFIG_KEYS.QUOTE_LAYOUT, layout)
 }
 
 // 获取词云排除词列表

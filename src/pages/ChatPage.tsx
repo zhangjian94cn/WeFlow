@@ -52,6 +52,8 @@ interface GlobalMsgPrefixCacheEntry {
   completed: boolean
 }
 
+type QuoteLayout = configService.QuoteLayout
+
 const GLOBAL_MSG_PER_SESSION_LIMIT = 10
 const GLOBAL_MSG_SEED_LIMIT = 120
 const GLOBAL_MSG_BACKFILL_CONCURRENCY = 3
@@ -7556,6 +7558,7 @@ function MessageBubble({
   const [senderAvatarUrl, setSenderAvatarUrl] = useState<string | undefined>(undefined)
   const [senderName, setSenderName] = useState<string | undefined>(undefined)
   const [quotedSenderName, setQuotedSenderName] = useState<string | undefined>(undefined)
+  const [quoteLayout, setQuoteLayout] = useState<QuoteLayout>('quote-top')
   const senderProfileRequestSeqRef = useRef(0)
   const [emojiError, setEmojiError] = useState(false)
   const [emojiLoading, setEmojiLoading] = useState(false)
@@ -8549,6 +8552,18 @@ function MessageBubble({
     myWxid
   ])
 
+  useEffect(() => {
+    let cancelled = false
+    void configService.getQuoteLayout().then((layout) => {
+      if (!cancelled) setQuoteLayout(layout)
+    }).catch(() => {
+      if (!cancelled) setQuoteLayout('quote-top')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const locationMessageMeta = useMemo(() => {
     if (message.localType !== 48) return null
     const raw = message.rawContent || ''
@@ -8584,6 +8599,31 @@ function MessageBubble({
   // 是否有引用消息
   const hasQuote = quotedContent.length > 0
   const displayQuotedSenderName = quotedSenderName || quotedSenderFallbackName
+  const renderBubbleWithQuote = useCallback((quotedNode: React.ReactNode, messageNode: React.ReactNode) => {
+    const quoteFirst = quoteLayout !== 'quote-bottom'
+    return (
+      <div className={`bubble-content ${quoteFirst ? 'quote-layout-top' : 'quote-layout-bottom'}`}>
+        {quoteFirst ? (
+          <>
+            {quotedNode}
+            {messageNode}
+          </>
+        ) : (
+          <>
+            {messageNode}
+            {quotedNode}
+          </>
+        )}
+      </div>
+    )
+  }, [quoteLayout])
+
+  const renderQuotedMessageBlock = useCallback((contentNode: React.ReactNode) => (
+    <div className="quoted-message">
+      {displayQuotedSenderName && <span className="quoted-sender">{displayQuotedSenderName}</span>}
+      <span className="quoted-text">{contentNode}</span>
+    </div>
+  ), [displayQuotedSenderName])
 
   const handlePlayVideo = useCallback(async () => {
     if (!videoInfo?.videoUrl) return
@@ -9023,13 +9063,10 @@ function MessageBubble({
         }
 
         return (
-          <div className="bubble-content">
-            <div className="quoted-message">
-              {displayQuotedSenderName && <span className="quoted-sender">{displayQuotedSenderName}</span>}
-              <span className="quoted-text">{renderReferContent()}</span>
-            </div>
+          renderBubbleWithQuote(
+            renderQuotedMessageBlock(renderReferContent()),
             <div className="message-text">{renderTextWithEmoji(cleanMessageContent(replyText))}</div>
-          </div>
+          )
         )
       }
 
@@ -9122,13 +9159,10 @@ function MessageBubble({
         const replyText = message.linkTitle || q('title') || cleanedParsedContent || ''
         const referContent = message.quotedContent || q('refermsg > content') || ''
         return (
-          <div className="bubble-content">
-            <div className="quoted-message">
-              {displayQuotedSenderName && <span className="quoted-sender">{displayQuotedSenderName}</span>}
-              <span className="quoted-text">{renderTextWithEmoji(cleanMessageContent(referContent))}</span>
-            </div>
+          renderBubbleWithQuote(
+            renderQuotedMessageBlock(renderTextWithEmoji(cleanMessageContent(referContent))),
             <div className="message-text">{renderTextWithEmoji(cleanMessageContent(replyText))}</div>
-          </div>
+          )
         )
       }
 
@@ -9338,13 +9372,10 @@ function MessageBubble({
         }
 
         return (
-          <div className="bubble-content">
-            <div className="quoted-message">
-              {displayQuotedSenderName && <span className="quoted-sender">{displayQuotedSenderName}</span>}
-              <span className="quoted-text">{renderReferContent2()}</span>
-            </div>
+          renderBubbleWithQuote(
+            renderQuotedMessageBlock(renderReferContent2()),
             <div className="message-text">{renderTextWithEmoji(cleanMessageContent(replyText))}</div>
-          </div>
+          )
         )
       }
 
@@ -9623,14 +9654,9 @@ function MessageBubble({
 
     // 带引用的消息
     if (hasQuote) {
-      return (
-        <div className="bubble-content">
-          <div className="quoted-message">
-            {displayQuotedSenderName && <span className="quoted-sender">{displayQuotedSenderName}</span>}
-            <span className="quoted-text">{renderTextWithEmoji(cleanMessageContent(quotedContent))}</span>
-          </div>
-          <div className="message-text">{renderTextWithEmoji(cleanedParsedContent)}</div>
-        </div>
+      return renderBubbleWithQuote(
+        renderQuotedMessageBlock(renderTextWithEmoji(cleanMessageContent(quotedContent))),
+        <div className="message-text">{renderTextWithEmoji(cleanedParsedContent)}</div>
       )
     }
 
