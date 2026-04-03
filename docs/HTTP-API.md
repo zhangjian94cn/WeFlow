@@ -466,10 +466,15 @@ curl "http://127.0.0.1:5031/api/v1/sns/timeline?limit=3&media=1&inline=1"
 
 媒体字段说明（`media=1`）：
 
+- `media[].url/thumb`：你应该优先直接使用的字段。
+- `replace=1`（默认）时，`media[].url/thumb` 会直接被替换成可访问地址，等价于 `resolvedUrl/resolvedThumbUrl`。
+- `replace=0` 时，`media[].url/thumb` 仍保留微信原始地址；这时再结合下面的 `raw/proxy/resolved` 字段自己决定用哪一个。
 - `media[].rawUrl/rawThumb`：原始朋友圈地址
 - `media[].proxyUrl/proxyThumbUrl`：可直接访问的代理地址
 - `media[].resolvedUrl/resolvedThumbUrl`：最终可用地址（`inline=1` 时可能是 `data:` URL）
-- `replace=1` 时，`media[].url/thumb` 会被替换为可用地址
+- `media[].token/key/encIdx`：微信源数据里的访问/解密参数。通常不需要你自己处理；如果你手动调用 `/api/v1/sns/media/proxy`，把当前条目的 `url` 和 `key` 原样传回即可。
+- `media[].livePhoto`：实况图的视频部分。外层 `media[].url/thumb` 仍是封面图，`livePhoto` 内部会再提供一组自己的 `url/thumb/raw*/proxy*/resolved*` 字段。
+- `media=0` 时，不会补充 `raw*/proxy*/resolved*`，接口只返回原始 `url/thumb` 以及源字段（如 `key/token/encIdx`）。
 
 ### 7.2 获取朋友圈发布者
 

@@ -1240,7 +1240,7 @@ class SnsService {
         return { success: false, error: result.error }
     }
 
-    async downloadImage(url: string, key?: string | number): Promise<{ success: boolean; data?: Buffer; contentType?: string; error?: string }> {
+    async downloadImage(url: string, key?: string | number): Promise<{ success: boolean; data?: Buffer; contentType?: string; cachePath?: string; error?: string }> {
         return this.fetchAndDecryptImage(url, key)
     }
 

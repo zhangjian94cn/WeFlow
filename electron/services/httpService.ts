@@ -891,15 +891,42 @@ class HttpService {
 
     const key = this.toSnsMediaKey(url.searchParams.get('key'))
     const result = await snsService.downloadImage(mediaUrl, key)
-    if (!result.success || !result.data) {
+    if (!result.success) {
       this.sendError(res, 502, result.error || 'Failed to proxy sns media')
       return
     }
 
-    res.setHeader('Content-Type', result.contentType || 'application/octet-stream')
-    res.setHeader('Content-Length', result.data.length)
-    res.writeHead(200)
-    res.end(result.data)
+    if (result.data) {
+      res.setHeader('Content-Type', result.contentType || 'application/octet-stream')
+      res.setHeader('Content-Length', result.data.length)
+      res.writeHead(200)
+      res.end(result.data)
+      return
+    }
+
+    if (result.cachePath && fs.existsSync(result.cachePath)) {
+      try {
+        const stat = fs.statSync(result.cachePath)
+        res.setHeader('Content-Type', result.contentType || 'application/octet-stream')
+        res.setHeader('Content-Length', stat.size)
+        res.writeHead(200)
+
+        const stream = fs.createReadStream(result.cachePath)
+        stream.on('error', () => {
+          if (!res.headersSent) {
+            this.sendError(res, 500, 'Failed to read proxied sns media')
+          } else {
+            try { res.destroy() } catch {}
+          }
+        })
+        stream.pipe(res)
+        return
+      } catch (error) {
+        console.error('[HttpService] Failed to stream sns media cache:', error)
+      }
+    }
+
+    this.sendError(res, 502, result.error || 'Failed to proxy sns media')
   }
 
   private async handleSnsExport(url: URL, res: http.ServerResponse): Promise<void> {
