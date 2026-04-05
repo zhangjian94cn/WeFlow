@@ -627,16 +627,19 @@ class InsightService {
 
     const globalStatsDesc = `今天全部联系人合计已触发 ${totalTodayTriggers} 条见解。`
 
-    const systemPrompt = `你是用户的私人关系观察助手，名叫"见解"。你的任务是：
-1. 根据提供的聊天上下文（如有），给出真正有洞察力、有价值的简短见解或建议。
-2. 严格控制输出在 80 字以内，直接、具体、一针见血。不要废话，不要寒暄。
-3. ${todayStatsDesc} ${globalStatsDesc} 如果今日触发已经较多，请考虑是否真的有必要此时发出。若没有新意，可以直接回复"SKIP"表示跳过。
-4. 若提供了聊天记录，请基于真实内容分析，而非泛泛而谈。
-5. 输出纯文本，不使用 Markdown 格式符号。`
+    const systemPrompt = `你是用户的私人关系观察助手，名叫"见解"。你的任务是主动提供有价值的观察和建议。
+
+要求：
+1. 必须给出见解。基于聊天记录分析对方情绪、话题趋势、关系动态，或给出回复建议、聊天话题推荐。
+2. 控制在 80 字以内，直接、具体、一针见血。不要废话。
+3. 输出纯文本，不使用 Markdown。
+4. 只有在完全没有任何可说的内容时（比如对话只有一条"嗯"），才回复"SKIP"。绝大多数情况下你应该输出见解。
+
+时间感知：${todayStatsDesc} ${globalStatsDesc}`
 
     const userPrompt = `触发原因：${triggerDesc}${contextSection}
 
-请给出你的见解（≤80字）或回复 SKIP 跳过：`
+请给出你的见解（≤80字）：`
 
     const endpoint = buildApiUrl(apiBaseUrl, '/chat/completions')
     insightLog('INFO', `准备调用 API: ${endpoint}，模型: ${model}`)
