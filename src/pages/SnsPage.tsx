@@ -1127,7 +1127,7 @@ export default function SnsPage() {
                     activeContactsCountTaskIdRef.current = null
                 }
                 finishBackgroundTask(taskId, 'completed', {
-                    detail: '鑱旂郴浜烘湅鍙嬪湀鏉℃暟琛ョ畻瀹屾垚',
+                    detail: '联系人朋友圈条数补算完成',
                     progressText: `${totalTargets}/${totalTargets}`
                 })
             }
