@@ -125,7 +125,7 @@ function SettingsPage({ onClose }: SettingsPageProps = {}) {
 
     setHttpApiToken(token)
     await configService.setHttpApiToken(token)
-    showMessage('已生成��保存新的 Access Token', true)
+    showMessage('已生成并保存新的 Access Token', true)
   }
 
   const clearApiToken = async () => {
@@ -618,7 +618,7 @@ function SettingsPage({ onClose }: SettingsPageProps = {}) {
       showMessage(`已切换到${channelLabel}更新渠道，正在检查更新`, true)
       await handleCheckUpdate()
     } catch (e: any) {
-      showMessage(`切换更新渠道��败: ${e}`, false)
+      showMessage(`切换更新渠道失败: ${e}`, false)
     }
   }
 
@@ -1213,7 +1213,7 @@ function SettingsPage({ onClose }: SettingsPageProps = {}) {
       if (result.success && result.aesKey) {
         if (typeof result.xorKey === 'number') setImageXorKey(`0x${result.xorKey.toString(16).toUpperCase().padStart(2, '0')}`)
         setImageAesKey(result.aesKey)
-        setImageKeyStatus('已获取图片��钥')
+        setImageKeyStatus('已获取图片密钥')
         showMessage('已自动获取图片密钥', true)
         const newXorKey = typeof result.xorKey === 'number' ? result.xorKey : 0
         const newAesKey = result.aesKey
@@ -3207,7 +3207,7 @@ function SettingsPage({ onClose }: SettingsPageProps = {}) {
               value={`http://${httpApiHost}:${httpApiPort}`}
               readOnly
             />
-            <button className="btn btn-secondary" onClick={handleCopyApiUrl} title="复���">
+            <button className="btn btn-secondary" onClick={handleCopyApiUrl} title="复制">
               <Copy size={16} />
             </button>
           </div>
@@ -3341,7 +3341,7 @@ function SettingsPage({ onClose }: SettingsPageProps = {}) {
     try {
       const verifyResult = await window.electronAPI.auth.hello('请验证您的身份以开启 Windows Hello')
       if (!verifyResult.success) {
-        showMessage(verifyResult.error || 'Windows Hello ��证失败', false)
+        showMessage(verifyResult.error || 'Windows Hello 验证失败', false)
         return
       }
 
@@ -3573,7 +3573,7 @@ function SettingsPage({ onClose }: SettingsPageProps = {}) {
                 onClick={handleSetupHello}
                 disabled={!helloAvailable || isSettingHello || !authEnabled || !helloPassword}
               >
-                {isSettingHello ? '���置中...' : '开启与设置'}
+                {isSettingHello ? '配置中...' : '开启与设置'}
               </button>
             )}
           </div>

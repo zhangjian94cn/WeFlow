@@ -949,7 +949,7 @@ export class ImageDecryptService {
         } catch { }
       }
 
-      // --- 绛栫暐 B: 鏂扮増 Session 鍝堝笇璺緞鐚滄祴 ---
+      // --- 策略 B: 新版 Session 哈希路径猜测 ---
       try {
         const entries = await fs.readdir(root, { withFileTypes: true })
         const sessionDirs = entries
@@ -1854,7 +1854,7 @@ export class ImageDecryptService {
   }
 
   /**
-   * 浠?wxgf 鏁版嵁涓彁鍙?HEVC NALU 瑁告祦
+   * 从 wxgf 数据中提取 HEVC NALU 裸流
    */
   private extractHevcNalu(buffer: Buffer): Buffer | null {
     const nalUnits: Buffer[] = []

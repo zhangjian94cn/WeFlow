@@ -520,7 +520,7 @@ export async function setExportDefaultTxtColumns(columns: string[]): Promise<voi
   await config.set(CONFIG_KEYS.EXPORT_DEFAULT_TXT_COLUMNS, columns)
 }
 
-// 获取导出默认并发��
+// 获取导出默认并发数
 export async function getExportDefaultConcurrency(): Promise<number | null> {
   const value = await config.get(CONFIG_KEYS.EXPORT_DEFAULT_CONCURRENCY)
   if (typeof value === 'number' && Number.isFinite(value)) return value

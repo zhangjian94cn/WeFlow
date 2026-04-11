@@ -736,7 +736,7 @@ export class ConfigService {
   // === 工具方法 ===
 
   /**
-   * 获取当前 wxid 对应的图片密钥，优先从 wxidConfigs 中取，找不到则回退到全局��置
+   * 获取当前 wxid 对应的图片密钥，优先从 wxidConfigs 中取，找不到则回退到全局配置
    */
   getImageKeysForCurrentWxid(): { xorKey: unknown; aesKey: string } {
     const wxid = this.get('myWxid')

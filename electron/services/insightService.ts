@@ -316,7 +316,7 @@ class InsightService {
   }
 
   /**
-   * 测��� API 连接，返回 { success, message }。
+   * 测试 API 连接，返回 { success, message }。
    * 供设置页"测试连接"按钮调用。
    */
   async testConnection(): Promise<{ success: boolean; message: string }> {
@@ -475,7 +475,7 @@ class InsightService {
   }
 
   /**
-   * 获取今日全局已触发次数（所有会话合计），用于 prompt 中告知模���全局上下文。
+   * 获取今日全局已触发次数（所有会话合计），用于 prompt 中告知模型全局上下文。
    */
   private getTodayTotalTriggerCount(): number {
     this.resetIfNewDay()
@@ -709,7 +709,7 @@ class InsightService {
       return
     }
 
-    // ── 构建 prompt ─────────────���───────────────────────────────���────────────
+    // ── 构建 prompt ────────────────────────────────────────────────────────────
 
     // 今日触发统计（让模型具备时间与克制感）
     const sessionTriggerTimes = this.recordTrigger(sessionId)
